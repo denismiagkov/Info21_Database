@@ -3,7 +3,8 @@ BEGIN
 	IF ((SELECT count(*) FROM tasks WHERE parenttask IS NULL) < 1) 
 		OR NEW.parenttask IS NOT NULL THEN 
 			RETURN NEW;
-	ELSE RETURN NULL;
+	ELSE 
+		RAISE EXCEPTION 'The task must have parenttask';
 	END IF; 
 END
 $$ LANGUAGE plpgsql;
@@ -25,7 +26,8 @@ BEGIN
 		check_parenttask_id = (SELECT id 
 							FROM checks c JOIN tasks t ON c.task = t.title 
 							WHERE c.peer = NEW.peer 
-								AND c.task = (SELECT parenttask FROM tasks t WHERE t.title = NEW.task));
+								AND c.task = (SELECT parenttask FROM tasks t 
+							WHERE t.title = NEW.task) ORDER BY id DESC LIMIT 1);
 	END IF;
 	IF (
 		('Success' IN (SELECT state FROM p2p WHERE "Check" = check_parenttask_id) 
@@ -34,7 +36,7 @@ BEGIN
 		OR parenttask_is_null IS TRUE) THEN 
 		RETURN NEW;
 	ELSE 
-		RETURN NULL;
+		RAISE EXCEPTION 'The parenttask is not completed';
 	END IF;		
 END
 $$ LANGUAGE plpgsql;
@@ -44,19 +46,38 @@ CREATE TRIGGER parent_task_completed BEFORE INSERT OR UPDATE ON checks
 FOR EACH ROW EXECUTE PROCEDURE check_parent_task_completed();
 
 --
-CREATE OR REPLACE FUNCTION check_incompleteness() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION check_record_status_on_p2p(_check int, status check_status) RETURNS bool AS $$
 BEGIN 
-	IF (
+	IF ((SELECT state FROM p2p WHERE "Check"  = _check ORDER BY id DESC LIMIT 1) IS NULL   
+		AND status = 'Start') THEN 
+		RETURN TRUE;
+	ELSEIF ((SELECT state FROM p2p WHERE "Check"  = _check ORDER BY id DESC LIMIT 1) = 'Start'   
+		AND status IN ('Success', 'Failure')) THEN 
+		RETURN TRUE;
+	ELSE RETURN FALSE;
+	END IF;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION check_incompleteness() RETURNS TRIGGER AS $$
+DECLARE 
+	status bool;
+BEGIN 
+	status = check_record_status_on_p2p(NEW."Check", NEW.state);
+	IF (status = FALSE)  THEN
+		RAISE EXCEPTION 'Incorrect status of check';
+	ELSEIF (
 		NEW.state = 'Start' 
 		AND (SELECT state 
 			FROM p2p p JOIN checks c ON p."Check" = c.id 
 			WHERE c.task = (SELECT task FROM checks WHERE id = NEW."Check") 
-							AND c.peer = (SELECT peer FROM checks WHERE id = NEW."Check")
-							AND p.checkingpeer = (SELECT checkingpeer FROM p2p WHERE checkingpeer = NEW.checkingpeer)
+					AND c.peer = (SELECT peer FROM checks WHERE id = NEW."Check")
+					AND p.checkingpeer = (SELECT checkingpeer FROM p2p 
+					WHERE "Check" = NEW."Check" AND checkingpeer = NEW.checkingpeer)
 			ORDER BY p.id DESC 
 			LIMIT 1) = 'Start' 
 				) THEN 
-		RETURN NULL;
+		RAISE EXCEPTION 'There is incompleted check with the same task, peer and checking peer';
 	ELSE 
 		RETURN NEW;
 	END IF;	
@@ -68,7 +89,7 @@ CREATE TRIGGER incompleted_check BEFORE INSERT OR UPDATE ON p2p
 FOR EACH ROW EXECUTE PROCEDURE check_incompleteness();
 
 --
-CREATE OR REPLACE FUNCTION check_record_status(_check int, status check_status) RETURNS bool AS $$
+CREATE OR REPLACE FUNCTION check_record_status_on_verter(_check int, status check_status) RETURNS bool AS $$
 BEGIN 
 	IF ((SELECT state FROM verter WHERE "Check"  = _check ORDER BY id DESC LIMIT 1) IS NULL   
 		AND status = 'Start') THEN 
@@ -85,10 +106,13 @@ CREATE OR REPLACE FUNCTION is_successful_check() RETURNS TRIGGER AS $$
 DECLARE 
 	status bool;
 BEGIN 
-	status = check_record_status(NEW."Check", NEW.state);
-	IF (NEW."Check" IN (SELECT "Check" FROM p2p WHERE state = 'Success') AND status = TRUE) THEN 
+	status = check_record_status_on_verter(NEW."Check", NEW.state);
+	IF (status = FALSE) THEN
+		RAISE EXCEPTION 'Incorrect status of verter check';
+	ELSEIF (NEW."Check" IN (SELECT "Check" FROM p2p WHERE state = 'Success')) THEN 
 		RETURN NEW;
-	ELSE RETURN NULL;
+	ELSE 
+		RAISE EXCEPTION 'There is no successful p2p check on the task';
 	END IF;	
 END
 $$ LANGUAGE plpgsql;
@@ -113,8 +137,9 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION check_status_for_xp(_check int) RETURNS bool AS $$
 BEGIN 
 	IF (((SELECT state FROM p2p WHERE "Check" = _check ORDER BY id DESC LIMIT 1) = 'Success') 
-		AND (SELECT state FROM verter WHERE "Check" = _check ORDER BY id DESC LIMIT 1) 
-		IN (NULL, 'Success')) THEN 
+		AND (((SELECT state FROM verter WHERE "Check" = _check ORDER BY id DESC LIMIT 1) 
+		= 'Success') OR ((SELECT state FROM verter WHERE "Check" = _check ORDER BY id DESC LIMIT 1) 
+		IS NULL))) THEN 
 		RETURN TRUE;
 	ELSE
 		RETURN FALSE;
