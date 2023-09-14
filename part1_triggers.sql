@@ -72,8 +72,7 @@ BEGIN
 			FROM p2p p JOIN checks c ON p."Check" = c.id 
 			WHERE c.task = (SELECT task FROM checks WHERE id = NEW."Check") 
 					AND c.peer = (SELECT peer FROM checks WHERE id = NEW."Check")
-					AND p.checkingpeer = (SELECT checkingpeer FROM p2p 
-					WHERE "Check" = NEW."Check" AND checkingpeer = NEW.checkingpeer)
+					AND p.checkingpeer =  NEW.checkingpeer
 			ORDER BY p.id DESC 
 			LIMIT 1) = 'Start' 
 				) THEN 
@@ -121,46 +120,46 @@ DROP TRIGGER IF EXISTS p2p_successful_check ON verter;
 CREATE TRIGGER p2p_successful_check BEFORE INSERT OR UPDATE ON verter
 FOR EACH ROW EXECUTE PROCEDURE is_successful_check();
 
+--CREATE OR REPLACE FUNCTION check_maximum_for_xp(xp_amount int, _check int) RETURNS bool AS $$
+--BEGIN 
+--	IF (xp_amount > (SELECT MaxXP 
+--						FROM tasks t JOIN checks c ON t.title = c.task
+--						WHERE c.id = _check)) THEN 
+--		RETURN FALSE;
+--	ELSE 
+--		RETURN TRUE;
+--	END IF;
+--END
+--$$ LANGUAGE plpgsql;
 --
-CREATE OR REPLACE FUNCTION check_maximum_for_xp(xp_amount int, _check int) RETURNS bool AS $$
-BEGIN 
-	IF (xp_amount > (SELECT MaxXP 
-						FROM tasks t JOIN checks c ON t.title = c.task
-						WHERE c.id = _check)) THEN 
-		RETURN FALSE;
-	ELSE 
-		RETURN TRUE;
-	END IF;
-END
-$$ LANGUAGE plpgsql;
+--CREATE OR REPLACE FUNCTION check_status_for_xp(_check int) RETURNS bool AS $$
+--BEGIN 
+--	IF (((SELECT state FROM p2p WHERE "Check" = _check ORDER BY id DESC LIMIT 1) = 'Success') 
+--		AND (((SELECT state FROM verter WHERE "Check" = _check ORDER BY id DESC LIMIT 1) 
+--		= 'Success') OR ((SELECT state FROM verter WHERE "Check" = _check ORDER BY id DESC LIMIT 1) 
+--		IS NULL))) THEN 
+--		RETURN TRUE;
+--	ELSE
+--		RETURN FALSE;
+--	END IF;
+--END
+--$$ LANGUAGE plpgsql;
+--
+--CREATE OR REPLACE FUNCTION check_xp() RETURNS TRIGGER AS $$
+--BEGIN 
+--	IF (check_maximum_for_xp(NEW.XPAmount, NEW."Check") = FALSE) THEN 
+--		RAISE EXCEPTION 'XP amount can not be more then max XP of the task';
+--	ELSEIF (check_status_for_xp(NEW."Check") = FALSE ) THEN 
+--		RAISE EXCEPTION 'XP amount can not be received for not successful task';
+--	END IF;
+--	RETURN NEW;
+--END
+--$$ LANGUAGE plpgsql;
+--
+--DROP TRIGGER IF EXISTS is_xp_correct ON XP;
+--CREATE TRIGGER is_xp_correct BEFORE INSERT OR UPDATE ON XP
+--FOR EACH ROW EXECUTE PROCEDURE check_xp();
 
-CREATE OR REPLACE FUNCTION check_status_for_xp(_check int) RETURNS bool AS $$
-BEGIN 
-	IF (((SELECT state FROM p2p WHERE "Check" = _check ORDER BY id DESC LIMIT 1) = 'Success') 
-		AND (((SELECT state FROM verter WHERE "Check" = _check ORDER BY id DESC LIMIT 1) 
-		= 'Success') OR ((SELECT state FROM verter WHERE "Check" = _check ORDER BY id DESC LIMIT 1) 
-		IS NULL))) THEN 
-		RETURN TRUE;
-	ELSE
-		RETURN FALSE;
-	END IF;
-END
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION check_xp() RETURNS TRIGGER AS $$
-BEGIN 
-	IF (check_maximum_for_xp(NEW.XPAmount, NEW."Check") = FALSE) THEN 
-		RAISE EXCEPTION 'XP amount can not be more then max XP of the task';
-	ELSEIF (check_status_for_xp(NEW."Check") = FALSE ) THEN 
-		RAISE EXCEPTION 'XP amount can not be received for not successful task';
-	END IF;
-	RETURN NEW;
-END
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS is_xp_correct ON XP;
-CREATE TRIGGER is_xp_correct BEFORE INSERT OR UPDATE ON XP
-FOR EACH ROW EXECUTE PROCEDURE check_xp();
 
 
 
