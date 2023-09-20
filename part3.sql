@@ -188,6 +188,54 @@ BEGIN
 	FULL JOIN none_ n ON s.sql_per = n.none_per;
 END
 $$ LANGUAGE plpgsql;
-
 --SELECT * FROM get_percent_of_peers_started_task('SQL', 'linux');
+
+--3.10. Определить процент пиров, которые когда-либо успешно проходили проверку в свой день рождения
+CREATE OR REPLACE FUNCTION get_success_on_birthday(OUT SuccessfulChecks bigint,OUT UnsuccessfulChecks bigint) AS $$
+SELECT(
+(SELECT count(DISTINCT p.nickname) AS SuccessfulChecks
+FROM checks c 
+	FULL JOIN peers p ON c.peer = p.nickname 
+	FULL JOIN p2p pp ON c.id = pp."Check" 
+	FULL JOIN verter v ON c.id = v."Check" 
+WHERE ((EXTRACT (MONTH FROM p.birthday) = EXTRACT(MONTH FROM pp."time"))
+		 AND (EXTRACT (DAY FROM p.birthday) = EXTRACT(DAY FROM pp."time"))
+		 AND pp.state = 'Success' AND v.state IS NULL)
+	OR ((EXTRACT (MONTH FROM p.birthday) = EXTRACT(MONTH FROM v."time"))
+		 AND (EXTRACT (DAY FROM p.birthday) = EXTRACT(DAY FROM v."time"))
+		 AND v.state = 'Success'))
+	* 100 / (SELECT count(*) FROM peers),
+(SELECT count(DISTINCT p.nickname) AS UnsuccessfulChecks
+FROM checks c 
+	FULL JOIN peers p ON c.peer = p.nickname 
+	FULL JOIN p2p pp ON c.id = pp."Check" 
+	FULL JOIN verter v ON c.id = v."Check" 
+WHERE ((EXTRACT (MONTH FROM p.birthday) = EXTRACT(MONTH FROM pp."time"))
+		 AND (EXTRACT (DAY FROM p.birthday) = EXTRACT(DAY FROM pp."time"))
+		 AND pp.state = 'Failure' AND v.state IS NULL)
+	OR ((EXTRACT (MONTH FROM p.birthday) = EXTRACT(MONTH FROM v."time"))
+		 AND (EXTRACT (DAY FROM p.birthday) = EXTRACT(DAY FROM v."time"))
+		 AND v.state = 'Failure'))
+	* 100 / (SELECT count(*) FROM peers));
+$$ LANGUAGE SQL;
+--SELECT * FROM get_success_on_birthday();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
