@@ -239,8 +239,24 @@ RETURNS SETOF varchar AS $$
 $$ LANGUAGE SQL;
 --SELECT * FROM get_tasks_handed_over('SQL1', 'SQL2', 'SQL3');
 
-						
-
+--3.12. Используя рекурсивное обобщенное табличное выражение, для каждой задачи вывести кол-во предшествующих ей задач
+CREATE OR REPLACE FUNCTION get_count_of_previous_tasks (OUT task varchar, OUT prev_count int) 
+RETURNS SETOF record AS $$
+BEGIN 
+	RETURN query
+	WITH RECURSIVE count_parent_task(task, prev_count) AS 
+	(
+		SELECT title, 0 FROM tasks WHERE parenttask IS NULL
+		UNION ALL 
+		SELECT t.title, (cpt.prev_count + 1) 
+		FROM tasks t, count_parent_task cpt
+		WHERE t.parenttask = cpt.task
+	)
+	SELECT * FROM count_parent_task
+	ORDER BY task;
+END 
+$$ LANGUAGE plpgsql;
+-- SELECT * FROM get_count_of_previous_tasks();
 
 
 
