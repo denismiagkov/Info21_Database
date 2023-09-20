@@ -220,13 +220,26 @@ WHERE ((EXTRACT (MONTH FROM p.birthday) = EXTRACT(MONTH FROM pp."time"))
 $$ LANGUAGE SQL;
 --SELECT * FROM get_success_on_birthday();
 
+--3.11. Определить всех пиров, которые сдали заданные задания 1 и 2, но не сдали задание 3
+CREATE OR REPLACE FUNCTION get_tasks_handed_over(task1 varchar, task2 varchar, task3 varchar) 
+RETURNS SETOF varchar AS $$
+		SELECT DISTINCT c.peer AS peers
+		FROM p2p pp JOIN checks c ON pp."Check" = c.id 
+		WHERE (c.task = task1 AND pp.state = 'Start')
+		INTERSECT 
+		SELECT DISTINCT c.peer
+		FROM p2p pp JOIN checks c ON pp."Check" = c.id 
+		WHERE (c.task = task2 AND pp.state = 'Start')
+		INTERSECT 
+		SELECT DISTINCT c.peer
+		FROM p2p pp JOIN checks c ON pp."Check" = c.id 
+		WHERE c.peer NOT IN (SELECT c.peer
+								FROM checks c JOIN p2p pp ON c.id = pp."Check" 
+								WHERE task = task3 AND pp.state = 'Start');
+$$ LANGUAGE SQL;
+--SELECT * FROM get_tasks_handed_over('SQL1', 'SQL2', 'SQL3');
 
-
-
-
-
-
-
+						
 
 
 
