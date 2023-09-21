@@ -274,15 +274,11 @@ $$ LANGUAGE SQL;
 CREATE OR REPLACE FUNCTION get_peers_come_earlier(time_ time, n int) RETURNS SETOF varchar AS $$
 BEGIN 
 	RETURN query
-	WITH freq AS (
-		SELECT peer, count(*) frequency
-		FROM timetracking t 
-		WHERE t."time" < time_ AND state = 1
-		GROUP BY peer
-		ORDER BY frequency DESC)
 	SELECT peer
-	FROM freq
-	WHERE frequency >= n;
+	FROM timetracking t 
+	WHERE t."time" < time_ AND state = 1
+	GROUP BY peer
+	HAVING count(*) >=n;
 END
 $$ LANGUAGE plpgsql;
 -- SELECT * FROM get_peers_come_earlier('09:00:00', 4);
