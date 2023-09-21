@@ -258,10 +258,19 @@ END
 $$ LANGUAGE plpgsql;
 -- SELECT * FROM get_count_of_previous_tasks();
 
+--3.14. Определить пира с наибольшим количеством XP
+CREATE OR REPLACE FUNCTION get_peer_with_max_xp(OUT peer varchar, OUT xp bigint) AS $$
+WITH xp_by_peer AS (
+	SELECT peer, sum(xpamount) xp_sum 
+	FROM xp JOIN checks c ON xp."Check" = c.id 
+	GROUP BY peer)
+SELECT peer, xp_sum
+FROM xp_by_peer
+WHERE xp_sum = (SELECT max(xp_sum) FROM xp_by_peer);
+$$ LANGUAGE SQL;
+-- SELECT * FROM get_peer_with_max_xp();
 
-
-
-
+--3.15. 
 
 
 
