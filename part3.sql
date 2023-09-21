@@ -270,10 +270,20 @@ WHERE xp_sum = (SELECT max(xp_sum) FROM xp_by_peer);
 $$ LANGUAGE SQL;
 -- SELECT * FROM get_peer_with_max_xp();
 
---3.15. 
-
-
-
-
-
+--3.15. Определить пиров, приходивших раньше заданного времени не менее N раз за всё время
+CREATE OR REPLACE FUNCTION get_peers_come_earlier(time_ time, n int) RETURNS SETOF varchar AS $$
+BEGIN 
+	RETURN query
+	WITH freq AS (
+		SELECT peer, count(*) frequency
+		FROM timetracking t 
+		WHERE t."time" < time_ AND state = 1
+		GROUP BY peer
+		ORDER BY frequency DESC)
+	SELECT peer
+	FROM freq
+	WHERE frequency >= n;
+END
+$$ LANGUAGE plpgsql;
+-- SELECT * FROM get_peers_come_earlier('09:00:00', 4);
 
