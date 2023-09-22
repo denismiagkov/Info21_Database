@@ -283,3 +283,43 @@ END
 $$ LANGUAGE plpgsql;
 -- SELECT * FROM get_peers_come_earlier('09:00:00', 4);
 
+-- 3.16. Определить пиров, выходивших за последние N дней из кампуса больше M раз
+CREATE OR REPLACE FUNCTION get_peers_got_out_more_than(period_ int, count_ int) RETURNS SETOF varchar AS $$
+BEGIN 
+	RETURN query
+	SELECT peer
+	FROM timetracking t 
+	WHERE state = 2  AND date BETWEEN (current_date - period_) AND now()
+	GROUP BY peer, date
+	HAVING (count(state)-1) > count_;
+END 
+$$ LANGUAGE plpgSQL;
+--SELECT * FROM get_peers_got_out_more_than(30, 1);
+
+--3.17. Определить для каждого месяца процент ранних входов
+CREATE OR REPLACE FUNCTION get_early_entries(OUT MONTH text, OUT early_entries double precision) 
+RETURNS SETOF record AS $$
+BEGIN
+	RETURN query
+	WITH 
+	o_in AS (
+		SELECT to_char(date_trunc('month', t.date), 'Month') AS month, count(state) AS overall_in
+		FROM timetracking t JOIN peers p ON t.peer = p.nickname 
+		WHERE t.state = 1 AND EXTRACT (MONTH FROM t.date) = EXTRACT (MONTH FROM p.birthday)
+		GROUP BY date_trunc('month', t.date)),
+	e_in AS (
+		SELECT to_char(date_trunc('month', t.date), 'Month') AS month, count(state) AS early_in
+		FROM timetracking t JOIN peers p ON t.peer = p.nickname 
+		WHERE t.state = 1 AND EXTRACT (MONTH FROM t.date) = EXTRACT (MONTH FROM p.birthday)
+			AND t."time"  < '12:00'
+		GROUP BY date_trunc('month', t.date))
+	SELECT o_in.month,COALESCE (round(e_in.early_in * 100 / o_in.overall_in), 0)
+	FROM o_in LEFT JOIN e_in ON o_in.month = e_in.month;	
+END
+$$ LANGUAGE plpgsql;
+
+SELECT * FROM get_early_entries();
+
+
+
+
