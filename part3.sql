@@ -18,11 +18,10 @@ BEGIN
 	ORDER BY peer1;
 END
 $$ LANGUAGE plpgsql;
---SELECT * FROM present_transferred_points();
+SELECT * FROM present_transferred_points();
 
 --3.2. Написать функцию, которая возвращает таблицу вида: ник пользователя, название проверенного задания,
 -- кол-во полученного XP
-
 CREATE OR REPLACE FUNCTION xp_by_peer() RETURNS TABLE 
 (Peer varchar, Task varchar, XP integer) AS $$
 BEGIN
@@ -69,8 +68,24 @@ END
 $$ LANGUAGE plpgsql;
 --SELECT * FROM get_number_of_transferred_peerpoints();
 
---3.5
-
+--3.5. Посчитать изменение в количестве пир поинтов каждого пира по таблице, возвращаемой первой функцией из Part 3
+CREATE OR REPLACE FUNCTION get_peer_points_changed(OUT peer varchar, OUT points_change bigint) 
+RETURNS SETOF record AS $$
+BEGIN 
+	RETURN query
+	SELECT COALESCE (t1.peer1, t2.peer2) peer, (COALESCE (sum1, 0) + COALESCE (sum2, 0)) points_change
+	FROM 
+		(SELECT peer1, sum(pointsamount) sum1
+		FROM (SELECT * FROM present_transferred_points()) t
+		GROUP BY peer1) t1
+		FULL JOIN 
+		(SELECT peer2, sum(pointsamount)*(-1) sum2
+		FROM (SELECT * FROM present_transferred_points()) t
+		GROUP BY peer2) t2
+		ON t1.peer1 = t2.peer2;
+END 
+$$ LANGUAGE plpgsql;
+--SELECT * FROM get_peer_points_changed();
 
 --3.6. Определить самое часто проверяемое задание за каждый день
 CREATE OR REPLACE FUNCTION  get_most_frequently_checked_task() RETURNS TABLE ("Day" date, Task varchar) AS $$
