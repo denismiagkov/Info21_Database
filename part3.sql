@@ -1,29 +1,28 @@
---CREATE TABLE present_transferred_points AS 
---WITH tb AS (SELECT * FROM transferredpoints)
---SELECT checkingPeer AS Peer1, checkedPeer AS Peer2,
---(PointsAmount - COALESCE ((SELECT PointsAmount FROM tb 
---WHERE tb.CheckingPeer = t.CheckedPeer AND tb.checkedPeer = t.CheckingPeer), 0))
---AS PointsAmount
---FROM transferredpoints t ;
---
---DROP TABLE present_transferred_points;
---SELECT * FROM present_transferred_points;
+--3.1. Написать функцию, возвращающую таблицу TransferredPoints в более человекочитаемом виде
+CREATE OR REPLACE FUNCTION present_transferred_points() RETURNS TABLE 
+(Peer1 varchar, Peer2 varchar, PointsAmount integer) AS $$
+BEGIN
+	RETURN query 
+	SELECT t1.checkingPeer AS Peer1, t1.checkedPeer AS Peer2,
+	(t1.PointsAmount - t2.PointsAmount) AS PointsAmount 
+	FROM transferredpoints t1, transferredpoints t2 
+	WHERE t2.CheckingPeer = t1.CheckedPeer AND t2.checkedPeer = t1.CheckingPeer 
+	AND t1.checkingpeer < t1.checkedpeer 
+	UNION
+	SELECT t1.checkingPeer AS Peer1, t1.checkedPeer AS Peer2, t1.PointsAmount AS PointsAmount 
+	FROM transferredpoints t1
+	EXCEPT
+	SELECT t1.checkingPeer, t1.checkedPeer, t1.PointsAmount
+	FROM transferredpoints t1, transferredpoints t2 
+	WHERE t1.checkingPeer = t2.checkedPeer AND t1.checkedPeer = t2.checkingPeer
+	ORDER BY peer1;
+END
+$$ LANGUAGE plpgsql;
+--SELECT * FROM present_transferred_points();
 
---CREATE OR REPLACE FUNCTION present_transferred_points() RETURNS TABLE 
---(Peer1 varchar, Peer2 varchar, PointsAmount integer) AS $$
---BEGIN
---	RETURN query 
---	WITH tb AS (SELECT * FROM transferredpoints)
---	SELECT checkingPeer AS Peer1, checkedPeer AS Peer2,
---	(t.PointsAmount - COALESCE ((SELECT tb.PointsAmount FROM tb 
---	WHERE t.CheckingPeer = tb.CheckedPeer AND t.checkedPeer = tb.CheckingPeer ), 0)) 
---	AS PointsAmount
---	FROM transferredpoints t ;
---END
---$$ LANGUAGE plpgsql;
+--3.2. Написать функцию, которая возвращает таблицу вида: ник пользователя, название проверенного задания,
+-- кол-во полученного XP
 
-SELECT * FROM present_transferred_points();
---3.2
 CREATE OR REPLACE FUNCTION xp_by_peer() RETURNS TABLE 
 (Peer varchar, Task varchar, XP integer) AS $$
 BEGIN
@@ -36,9 +35,9 @@ BEGIN
 	WHERE p.state = 'Success' AND (v.state = 'Success' OR v.state IS NULL);
 END
 $$ LANGUAGE plpgsql;
-
 --SELECT * FROM xp_by_peer();
---3.3
+
+--3.3. Написать функцию, определяющую пиров, которые не выходили из кампуса в течение всего дня
 CREATE OR REPLACE FUNCTION get_not_exited_peers(dt date) RETURNS SETOF varchar AS $$
 BEGIN 
 	RETURN query
@@ -49,9 +48,9 @@ BEGIN
 	HAVING count(*) = 1;
 END
 $$ LANGUAGE plpgsql;
-
 --SELECT * FROM get_not_exited_peers('2023-09-15');
---3.4
+
+--3.4. Посчитать изменение в количестве пир поинтов каждого пира по таблице TransferredPoints
 CREATE OR REPLACE FUNCTION get_number_of_transferred_peerpoints() RETURNS TABLE 
 (Peer varchar, PointsChange bigint) AS $$
 BEGIN
@@ -68,13 +67,12 @@ BEGIN
 	ORDER BY PointsChange DESC ; 
 END
 $$ LANGUAGE plpgsql;
-
-SELECT * FROM get_number_of_transferred_peerpoints();
+--SELECT * FROM get_number_of_transferred_peerpoints();
 
 --3.5
 
 
---3.6
+--3.6. Определить самое часто проверяемое задание за каждый день
 CREATE OR REPLACE FUNCTION  get_most_frequently_checked_task() RETURNS TABLE ("Day" date, Task varchar) AS $$
 BEGIN 
 	RETURN query
@@ -91,9 +89,9 @@ BEGIN
 	WHERE count = max;
 END
 $$ LANGUAGE plpgsql;
-
 --SELECT * FROM get_most_frequently_checked_task();
---3.7
+
+--3.7. Найти всех пиров, выполнивших весь заданный блок задач и дату завершения последнего задания
 CREATE OR REPLACE FUNCTION get_peers_completed_block(block_name varchar, OUT peer varchar, OUT finish_day timestamp) 
 RETURNS SETOF record AS $$
 BEGIN 
@@ -110,9 +108,9 @@ BEGIN
 	ORDER BY finish_day;
 END
 $$ LANGUAGE plpgsql;
+--SELECT * FROM get_peers_completed_block ('SQL');
 
-SELECT * FROM get_peers_completed_block ('SQL');
---3.8
+--3.8. Определить, к какому пиру стоит идти на проверку каждому обучающемуся
 CREATE OR REPLACE FUNCTION get_recommended_checking_peer() RETURNS SETOF record AS $$
 DECLARE 
 	Peer varchar;
@@ -143,9 +141,11 @@ BEGIN
 	RETURN;
 END
 $$ LANGUAGE plpgsql;
-
 --SELECT * FROM  get_recommended_checking_peer() AS tbl(Peer varchar, RecommendedPeer varchar);
---3.9
+
+--3.9. Определить процент пиров, которые: *) Приступили только к блоку 1; 
+-- *) Приступили только к блоку 2; *) Приступили к обоим;  *) Не приступили ни к одному
+
 CREATE OR REPLACE FUNCTION  get_percent_of_peers_started_task(blockname1 varchar, blockname2 varchar, 
 OUT started_block_1 bigint, OUT started_block_2 bigint, OUT started_both_blocks bigint, 
 OUT didnt_start_any_block bigint) RETURNS SETOF record AS $$
@@ -317,8 +317,7 @@ BEGIN
 	FROM o_in LEFT JOIN e_in ON o_in.month = e_in.month;	
 END
 $$ LANGUAGE plpgsql;
-
-SELECT * FROM get_early_entries();
+--SELECT * FROM get_early_entries();
 
 
 
