@@ -18,7 +18,7 @@ BEGIN
 	ORDER BY peer1;
 END
 $$ LANGUAGE plpgsql;
-SELECT * FROM present_transferred_points();
+--SELECT * FROM present_transferred_points();
 
 --3.2. Написать функцию, которая возвращает таблицу вида: ник пользователя, название проверенного задания,
 -- кол-во полученного XP
@@ -47,7 +47,7 @@ BEGIN
 	HAVING count(*) = 1;
 END
 $$ LANGUAGE plpgsql;
---SELECT * FROM get_not_exited_peers('2023-09-15');
+--SELECT * FROM get_not_exited_peers('2023-02-15');
 
 --3.4. Посчитать изменение в количестве пир поинтов каждого пира по таблице TransferredPoints
 CREATE OR REPLACE PROCEDURE get_number_of_transferred_peer_points(get_result refcursor) AS $$
@@ -176,8 +176,8 @@ BEGIN
 		both_ AS (
 			SELECT count(*) both_per 
 			FROM (SELECT DISTINCT nickname FROM started_task
-			GROUP BY nickname 
-			HAVING count(DISTINCT dr) = 2) AS both_),
+			WHERE task LIKE (blockname1 || '1') AND (nickname IN (SELECT DISTINCT nickname FROM started_task
+			WHERE task LIKE (blockname2 || '1')))) AS both_),
 		none_ AS (
 			SELECT count(DISTINCT nickname) none_per 
 			FROM started_task
@@ -294,7 +294,6 @@ $$ LANGUAGE plpgsql;
 --FETCH ALL FROM "get_result";
 --CLOSE "get_result";
 
-DROP FUNCTION get_peers_come_earlier;
 --3.15. Определить пиров, приходивших раньше заданного времени не менее N раз за всё время
 CREATE OR REPLACE PROCEDURE get_peers_come_earlier(time_ time, n int, get_result refcursor) AS $$
 BEGIN 
@@ -306,7 +305,7 @@ BEGIN
 	HAVING count(*) >=n;
 END
 $$ LANGUAGE plpgsql;
---CALL get_peers_come_earlier('09:00:00', 3, 'get_result');
+--CALL get_peers_come_earlier('10:00:00', 2, 'get_result');
 --FETCH ALL FROM "get_result";
 --CLOSE "get_result";
 
@@ -321,7 +320,7 @@ BEGIN
 	HAVING (count(state)-1) > count_;
 END 
 $$ LANGUAGE plpgSQL;
---CALL get_peers_got_out_more_than(30, 2, 'get_result');
+--CALL get_peers_got_out_more_than(365, 0, 'get_result');
 --FETCH ALL FROM "get_result";
 --CLOSE "get_result";
 

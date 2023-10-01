@@ -1,3 +1,4 @@
+--2.1. Написать процедуру добавления P2P проверки
 CREATE OR REPLACE PROCEDURE add_p2p_check (checked_peer varchar, checking_peer varchar,
 task_name varchar, p2p_check_status check_status) AS $$
 DECLARE 
@@ -16,8 +17,9 @@ BEGIN
 	VALUES (checks_id, checking_peer, p2p_check_status, now());
 END
 $$ LANGUAGE plpgsql;
+--CALL add_p2p_check('janis', 'paul', 'intro', 'Start');
 
---
+--2.2. Написать процедуру добавления проверки Verter'ом
 CREATE OR REPLACE PROCEDURE add_verter_check (checked_peer varchar, task_name varchar,
 verter_status check_status, time_ timestamp) AS $$
 DECLARE 
@@ -30,8 +32,10 @@ BEGIN
 	VALUES (checks_id, verter_status, time_);	
 END
 $$ LANGUAGE plpgsql;
+--CALL add_verter_check('ringo', 'SQL1', 'Start', '2023-03-20 16:00:00');
 
---
+--2.3. Написать триггер: после добавления записи со статутом "начало" в таблицу P2P, 
+--изменить соответствующую запись в таблице TransferredPoints
 CREATE OR REPLACE FUNCTION add_point_to_peer() RETURNS TRIGGER AS $$
 DECLARE 
 	new_checked_peer varchar;
@@ -56,7 +60,7 @@ DROP TRIGGER IF EXISTS check_transfer_point ON p2p;
 CREATE TRIGGER check_transfer_point AFTER INSERT OR UPDATE ON p2p
 FOR EACH ROW EXECUTE PROCEDURE add_point_to_peer();
 
---
+--2.4. Написать триггер: перед добавлением записи в таблицу XP, проверить корректность добавляемой записи
 CREATE OR REPLACE FUNCTION check_maximum_for_xp(xp_amount int, _check int) RETURNS bool AS $$
 BEGIN 
 	IF (xp_amount > (SELECT MaxXP 
