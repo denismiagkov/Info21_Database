@@ -325,28 +325,33 @@ BEGIN
 	HAVING count(*) > count_;
 END 
 $$ LANGUAGE plpgSQL;
-CALL get_peers_got_out_more_than(365, 1, 'get_result');
-FETCH ALL FROM "get_result";
-CLOSE "get_result";
+--CALL get_peers_got_out_more_than(365, 1, 'get_result');
+--FETCH ALL FROM "get_result";
+--CLOSE "get_result";
 
 --3.17. Определить для каждого месяца процент ранних входов
 CREATE OR REPLACE PROCEDURE get_early_entries(get_result refcursor) AS $$
 BEGIN
 	OPEN get_result FOR
 	WITH 
+	tbl AS (
+		SELECT peer, date, time, 
+		ROW_NUMBER() OVER (PARTITION BY date, peer ORDER BY time) AS item
+		FROM timetracking t JOIN peers p ON t.peer = p.nickname 
+		WHERE t.state = 1 AND EXTRACT (MONTH FROM t.date) = EXTRACT (MONTH FROM p.birthday)),
 	o_in AS (
-		SELECT to_char(date_trunc('month', t.date), 'Month') AS month, count(state) AS overall_in
-		FROM timetracking t JOIN peers p ON t.peer = p.nickname 
-		WHERE t.state = 1 AND EXTRACT (MONTH FROM t.date) = EXTRACT (MONTH FROM p.birthday)
-		GROUP BY date_trunc('month', t.date)),
+		SELECT date_trunc('month', tbl."date") AS month, count(*) AS overall_in
+		FROM tbl 
+		WHERE item = 1
+		GROUP BY date_trunc('month', tbl.date)),
 	e_in AS (
-		SELECT to_char(date_trunc('month', t.date), 'Month') AS month, count(state) AS early_in
-		FROM timetracking t JOIN peers p ON t.peer = p.nickname 
-		WHERE t.state = 1 AND EXTRACT (MONTH FROM t.date) = EXTRACT (MONTH FROM p.birthday)
-			AND t."time"  < '12:00'
-		GROUP BY date_trunc('month', t.date))
-	SELECT o_in.month,COALESCE (round(e_in.early_in * 100 / o_in.overall_in), 0)
-	FROM o_in LEFT JOIN e_in ON o_in.month = e_in.month;	
+		SELECT date_trunc('month', tbl.date) AS month, count(*) AS early_in
+		FROM tbl
+		WHERE item = 1 AND tbl."time"  < '12:00'
+		GROUP BY date_trunc('month', tbl.date))
+	SELECT to_char(o_in.MONTH, 'Month') AS month, COALESCE (round(e_in.early_in * 100 / o_in.overall_in), 0)
+	FROM o_in LEFT JOIN e_in ON o_in.month = e_in.month
+	ORDER BY o_in.month;	
 END
 $$ LANGUAGE plpgsql;
 --CALL get_early_entries('get_result');
