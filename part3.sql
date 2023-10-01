@@ -313,16 +313,21 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE PROCEDURE get_peers_got_out_more_than(period_ int, count_ int, get_result refcursor) AS $$
 BEGIN 
 	OPEN get_result FOR
-	SELECT peer
-	FROM timetracking t 
-	WHERE state = 2  AND date BETWEEN (current_date - period_) AND now()
-	GROUP BY peer, date
-	HAVING (count(state)-1) > count_;
+	WITH all_exited_peers AS (
+		SELECT peer, date
+		FROM timetracking t 
+		WHERE state = 2  AND date BETWEEN (current_date - period_) AND now()
+		GROUP BY peer, date
+		HAVING count(*) > 1)
+	SELECT peer 
+	FROM all_exited_peers
+	GROUP BY peer
+	HAVING count(*) > count_;
 END 
 $$ LANGUAGE plpgSQL;
---CALL get_peers_got_out_more_than(365, 0, 'get_result');
---FETCH ALL FROM "get_result";
---CLOSE "get_result";
+CALL get_peers_got_out_more_than(365, 1, 'get_result');
+FETCH ALL FROM "get_result";
+CLOSE "get_result";
 
 --3.17. Определить для каждого месяца процент ранних входов
 CREATE OR REPLACE PROCEDURE get_early_entries(get_result refcursor) AS $$
